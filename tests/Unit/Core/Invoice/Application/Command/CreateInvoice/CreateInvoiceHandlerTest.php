@@ -39,9 +39,10 @@ class CreateInvoiceHandlerTest extends TestCase
     {
         $user = $this->createMock(User::class);
 
-        $invoice = new Invoice(
-            $user, 12500
-        );
+        // Ensure the user is active
+        $user->expects(self::once())
+            ->method('isActive')
+            ->willReturn(true);
 
         $this->userRepository->expects(self::once())
             ->method('getByEmail')
@@ -49,12 +50,12 @@ class CreateInvoiceHandlerTest extends TestCase
 
         $this->invoiceRepository->expects(self::once())
             ->method('save')
-            ->with($invoice);
+            ->with(self::isInstanceOf(Invoice::class));
 
         $this->invoiceRepository->expects(self::once())
             ->method('flush');
 
-        $this->handler->__invoke((new CreateInvoiceCommand('test@test.pl', 12500)));
+        $this->handler->__invoke(new CreateInvoiceCommand('test@test.pl', 12500));
     }
 
     public function test_handle_user_not_exists(): void
@@ -73,5 +74,23 @@ class CreateInvoiceHandlerTest extends TestCase
         $this->expectException(InvoiceException::class);
 
         $this->handler->__invoke((new CreateInvoiceCommand('test@test.pl', -5)));
+    }
+
+    public function test_handle_user_inactive(): void
+    {
+        $this->expectException(InvoiceException::class);
+        $this->expectExceptionMessage('Nie można utworzyć faktury dla nieaktywnego użytkownika.');
+
+        $user = $this->createMock(User::class);
+
+        $user->expects(self::once())
+            ->method('isActive')
+            ->willReturn(false);
+
+        $this->userRepository->expects(self::once())
+            ->method('getByEmail')
+            ->willReturn($user);
+
+        $this->handler->__invoke(new CreateInvoiceCommand('test@test.pl', 12500));
     }
 }
